@@ -96,6 +96,11 @@ export function isAsyncAvailable(): boolean {
 	return jitiCliPath !== undefined;
 }
 
+export function resolveExecutionCwd(baseCwd: string, requestedCwd?: string): string {
+	if (!requestedCwd) return baseCwd;
+	return path.isAbsolute(requestedCwd) ? requestedCwd : path.resolve(baseCwd, requestedCwd);
+}
+
 /**
  * Spawn the async runner process
  */
@@ -168,6 +173,7 @@ export function executeAsyncChain(
 	/** Build a resolved runner step from a SequentialStep */
 	const buildSeqStep = (s: SequentialStep, sessionFile?: string) => {
 		const a = agents.find((x) => x.name === s.agent)!;
+		const stepCwd = s.cwd ? resolveExecutionCwd(ctx.cwd, s.cwd) : undefined;
 		const stepSkillInput = normalizeSkillInput(s.skill);
 		const stepOverrides: StepOverrides = { skills: stepSkillInput };
 		const behavior = resolveStepBehavior(a, stepOverrides, chainSkills);
@@ -182,13 +188,13 @@ export function executeAsyncChain(
 
 		// Resolve output path and inject instruction into task
 		// Use step's cwd if specified, otherwise fall back to chain-level cwd
-		const outputPath = resolveSingleOutputPath(s.output, ctx.cwd, s.cwd ?? cwd);
+		const outputPath = resolveSingleOutputPath(s.output, ctx.cwd, stepCwd ?? runnerCwd);
 		const task = injectSingleOutputInstruction(s.task ?? "{previous}", outputPath);
 
 		return {
 			agent: s.agent,
 			task,
-			cwd: s.cwd,
+			cwd: stepCwd,
 			model: applyThinkingSuffix(s.model ?? a.model, a.thinking),
 			tools: a.tools,
 			extensions: a.extensions,
@@ -209,6 +215,7 @@ export function executeAsyncChain(
 
 	// Build runner steps — sequential steps become flat objects,
 	// parallel steps become { parallel: [...], concurrency?, failFast? }
+	const runnerCwd = resolveExecutionCwd(ctx.cwd, cwd);
 	const steps: RunnerStep[] = chain.map((s) => {
 		if (isParallelStep(s)) {
 			return {
@@ -227,7 +234,6 @@ export function executeAsyncChain(
 		return buildSeqStep(s as SequentialStep, nextSessionFile());
 	});
 
-	const runnerCwd = cwd ?? ctx.cwd;
 	const pid = spawnRunner(
 		{
 			id,
@@ -321,8 +327,8 @@ export function executeAsyncSingle(
 		};
 	}
 
-	const runnerCwd = cwd ?? ctx.cwd;
-	const outputPath = resolveSingleOutputPath(params.output, ctx.cwd, cwd);
+	const runnerCwd = resolveExecutionCwd(ctx.cwd, cwd);
+	const outputPath = resolveSingleOutputPath(params.output, ctx.cwd, runnerCwd);
 	const taskWithOutputInstruction = injectSingleOutputInstruction(task, outputPath);
 	const pid = spawnRunner(
 		{
@@ -331,7 +337,7 @@ export function executeAsyncSingle(
 				{
 					agent,
 					task: taskWithOutputInstruction,
-					cwd,
+					cwd: runnerCwd,
 					model: applyThinkingSuffix(agentConfig.model, agentConfig.thinking),
 					tools: agentConfig.tools,
 					extensions: agentConfig.extensions,

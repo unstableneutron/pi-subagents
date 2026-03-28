@@ -19,12 +19,24 @@ const utils = await tryImport<any>("./utils.ts");
 const available = !!(asyncMod && utils);
 
 const isAsyncAvailable = asyncMod?.isAsyncAvailable;
+const resolveExecutionCwd = asyncMod?.resolveExecutionCwd;
 const readStatus = utils?.readStatus;
 
 describe("async execution utilities", { skip: !available ? "pi packages not available" : undefined }, () => {
 	it("reports jiti availability as boolean", () => {
 		const result = isAsyncAvailable();
 		assert.equal(typeof result, "boolean");
+	});
+
+	it("resolves relative async cwd against the runtime cwd", () => {
+		assert.equal(
+			resolveExecutionCwd("/tmp/project", "nested/task"),
+			path.resolve("/tmp/project", "nested/task"),
+		);
+	});
+
+	it("keeps absolute async cwd unchanged", () => {
+		assert.equal(resolveExecutionCwd("/tmp/project", "/tmp/other"), "/tmp/other");
 	});
 
 	it("readStatus returns null for missing directory", () => {

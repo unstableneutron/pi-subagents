@@ -281,6 +281,9 @@ async function runSingleStep(
 	step: SubagentStep,
 	ctx: SingleStepContext,
 ): Promise<{ agent: string; output: string; exitCode: number | null; artifactPaths?: ArtifactPaths }> {
+	const effectiveCwd = step.cwd
+		? (path.isAbsolute(step.cwd) ? step.cwd : path.resolve(ctx.cwd, step.cwd))
+		: ctx.cwd;
 	const placeholderRegex = new RegExp(ctx.placeholder.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
 	const task = step.task.replace(placeholderRegex, () => ctx.previousOutput);
 	const sessionEnabled = Boolean(step.sessionFile) || ctx.sessionEnabled;
@@ -310,7 +313,7 @@ async function runSingleStep(
 		}
 	}
 
-	const result = await runPiStreaming(args, step.cwd ?? ctx.cwd, ctx.outputFile, env, ctx.piPackageRoot);
+	const result = await runPiStreaming(args, effectiveCwd, ctx.outputFile, env, ctx.piPackageRoot);
 	cleanupTempDir(tempDir);
 
 	const output = (result.stdout || "").trim();
