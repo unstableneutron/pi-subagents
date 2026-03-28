@@ -273,7 +273,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 
 	if (hasChain && params.chain) {
 		const normalized = normalizeSkillInput(params.skill);
-		const chainSkills = normalized === false ? [] : (normalized ?? []);
+		const chainSkills = normalized;
 		const chain = wrapChainTasksForFork(params.chain as ChainStep[], params.context);
 		return executeAsyncChain(id, {
 			chain,
@@ -302,7 +302,7 @@ function runAsyncPath(data: ExecutionContextData, deps: ExecutorDeps): AgentTool
 		const rawOutput = params.output !== undefined ? params.output : a.output;
 		const effectiveOutput: string | false | undefined = rawOutput === true ? a.output : (rawOutput as string | false | undefined);
 		const normalizedSkills = normalizeSkillInput(params.skill);
-		const skills = normalizedSkills === false ? [] : normalizedSkills;
+		const skills = normalizedSkills;
 		return executeAsyncSingle(id, {
 			agent: params.agent!,
 			task: params.context === "fork" ? wrapForkTask(params.task!) : params.task!,
@@ -339,7 +339,7 @@ async function runChainPath(data: ExecutionContextData, deps: ExecutorDeps): Pro
 		sessionRoot,
 	} = data;
 	const normalized = normalizeSkillInput(params.skill);
-	const chainSkills = normalized === false ? [] : (normalized ?? []);
+	const chainSkills = normalized;
 	const chain = wrapChainTasksForFork(params.chain as ChainStep[], params.context);
 	const chainResult = await executeChain({
 		chain,
@@ -532,7 +532,7 @@ async function runParallelPath(data: ExecutionContextData, deps: ExecutorDeps): 
 			artifactConfig,
 			maxOutput: params.maxOutput,
 			modelOverride: modelOverrides[i],
-			skills: effectiveSkills === false ? [] : effectiveSkills,
+			skills: effectiveSkills,
 			onUpdate: onUpdate
 				? (p) => {
 						const stepResults = p.details?.results || [];
@@ -681,7 +681,7 @@ async function runSinglePath(data: ExecutionContextData, deps: ExecutorDeps): Pr
 				shareEnabled,
 				sessionRoot,
 				sessionFile: sessionFileForIndex(0),
-				skills: skillOverride === false ? [] : skillOverride,
+				skills: skillOverride,
 				output: effectiveOutput,
 			});
 		}
@@ -693,13 +693,6 @@ async function runSinglePath(data: ExecutionContextData, deps: ExecutorDeps): Pr
 	const cleanTask = task;
 	const outputPath = resolveSingleOutputPath(effectiveOutput, ctx.cwd, params.cwd);
 	task = injectSingleOutputInstruction(task, outputPath);
-
-	let effectiveSkills: string[] | undefined;
-	if (skillOverride === false) {
-		effectiveSkills = [];
-	} else {
-		effectiveSkills = skillOverride;
-	}
 
 	const r = await runSync(ctx.cwd, agents, params.agent!, task, {
 		cwd: params.cwd,
@@ -713,7 +706,7 @@ async function runSinglePath(data: ExecutionContextData, deps: ExecutorDeps): Pr
 		maxOutput: params.maxOutput,
 		onUpdate,
 		modelOverride,
-		skills: effectiveSkills,
+		skills: skillOverride,
 	});
 	recordRun(params.agent!, cleanTask, r.exitCode, r.progressSummary?.durationMs ?? 0);
 

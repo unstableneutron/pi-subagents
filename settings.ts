@@ -19,7 +19,7 @@ export interface ResolvedStepBehavior {
 	output: string | false;
 	reads: string[] | false;
 	progress: boolean;
-	skills: string[] | false;
+	skills: string[] | false | undefined;
 	model?: string;
 }
 
@@ -29,6 +29,26 @@ export interface StepOverrides {
 	progress?: boolean;
 	skills?: string[] | false;
 	model?: string;
+}
+
+function mergeSkillBehaviors(
+	stepSkills: string[] | false | undefined,
+	chainSkills: string[] | false | undefined,
+	agentSkills: string[] | false | undefined,
+): string[] | false | undefined {
+	if (stepSkills === false) return false;
+	if (stepSkills !== undefined) {
+		return Array.isArray(chainSkills) && chainSkills.length > 0
+			? [...new Set([...stepSkills, ...chainSkills])]
+			: [...stepSkills];
+	}
+	if (chainSkills === false) return false;
+	if (agentSkills === false) return false;
+	const inheritedSkills = agentSkills ? [...agentSkills] : undefined;
+	if (Array.isArray(chainSkills) && chainSkills.length > 0) {
+		return [...new Set([...(inheritedSkills ?? []), ...chainSkills])];
+	}
+	return inheritedSkills;
 }
 
 // =============================================================================
@@ -166,7 +186,7 @@ export function resolveChainTemplates(
 export function resolveStepBehavior(
 	agentConfig: AgentConfig,
 	stepOverrides: StepOverrides,
-	chainSkills?: string[],
+	chainSkills?: string[] | false,
 ): ResolvedStepBehavior {
 	// Output: step override > frontmatter > false (no output)
 	const output =
@@ -186,20 +206,7 @@ export function resolveStepBehavior(
 			? stepOverrides.progress
 			: agentConfig.defaultProgress ?? false;
 
-	let skills: string[] | false;
-	if (stepOverrides.skills === false) {
-		skills = false;
-	} else if (stepOverrides.skills !== undefined) {
-		skills = [...stepOverrides.skills];
-		if (chainSkills && chainSkills.length > 0) {
-			skills = [...new Set([...skills, ...chainSkills])];
-		}
-	} else {
-		skills = agentConfig.skills ? [...agentConfig.skills] : [];
-		if (chainSkills && chainSkills.length > 0) {
-			skills = [...new Set([...skills, ...chainSkills])];
-		}
-	}
+	const skills = mergeSkillBehaviors(stepOverrides.skills, chainSkills, agentConfig.skills);
 
 	const model = stepOverrides.model ?? agentConfig.model;
 	return { output, reads, progress, skills, model };
@@ -279,7 +286,7 @@ export function resolveParallelBehaviors(
 	tasks: ParallelTaskItem[],
 	agentConfigs: AgentConfig[],
 	stepIndex: number,
-	chainSkills?: string[],
+	chainSkills?: string[] | false,
 ): ResolvedStepBehavior[] {
 	return tasks.map((task, taskIndex) => {
 		const config = agentConfigs.find((a) => a.name === task.agent);
@@ -317,20 +324,7 @@ export function resolveParallelBehaviors(
 				: config.defaultProgress ?? false;
 
 		const taskSkillInput = normalizeSkillInput(task.skill);
-		let skills: string[] | false;
-		if (taskSkillInput === false) {
-			skills = false;
-		} else if (taskSkillInput !== undefined) {
-			skills = [...taskSkillInput];
-			if (chainSkills && chainSkills.length > 0) {
-				skills = [...new Set([...skills, ...chainSkills])];
-			}
-		} else {
-			skills = config.skills ? [...config.skills] : [];
-			if (chainSkills && chainSkills.length > 0) {
-				skills = [...new Set([...skills, ...chainSkills])];
-			}
-		}
+		const skills = mergeSkillBehaviors(taskSkillInput, chainSkills, config.skills);
 
 		const model = task.model ?? config.model;
 		return { output, reads, progress, skills, model };

@@ -11,10 +11,10 @@ export interface RunnerSubagentStep {
 	cwd?: string;
 	model?: string;
 	tools?: string[];
-	extensions?: string[];
+	extensions?: string[] | false;
 	mcpDirectTools?: string[];
 	systemPrompt?: string | null;
-	skills?: string[];
+	skills?: string[] | false;
 	outputPath?: string;
 	sessionFile?: string;
 }

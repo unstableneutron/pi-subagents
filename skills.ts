@@ -428,13 +428,17 @@ export function normalizeSkillInput(
 	if (input === false) return false;
 	if (input === true || input === undefined) return undefined;
 	if (Array.isArray(input)) {
-		return [...new Set(input.map((s) => s.trim()).filter((s) => s.length > 0))];
+		const normalized = [...new Set(input.map((s) => s.trim()).filter((s) => s.length > 0))];
+		return normalized.length > 0 ? normalized : false;
 	}
+	const trimmed = input.trim();
+	if (trimmed === "") return false;
+	if (trimmed === "false") return false;
+	if (trimmed === "true") return undefined;
 	// Guard against JSON-encoded arrays arriving as strings (e.g. '["a","b"]').
 	// Models sometimes serialise the skill parameter as a JSON string instead of
 	// a native array, and naively splitting on "," would embed brackets/quotes
 	// into the skill names, causing resolution to silently fail.
-	const trimmed = input.trim();
 	if (trimmed.startsWith("[")) {
 		try {
 			const parsed = JSON.parse(trimmed);
@@ -445,7 +449,8 @@ export function normalizeSkillInput(
 			// Not valid JSON – fall through to comma-split
 		}
 	}
-	return [...new Set(input.split(",").map((s) => s.trim()).filter((s) => s.length > 0))];
+	const normalized = [...new Set(trimmed.split(",").map((s) => s.trim()).filter((s) => s.length > 0))];
+	return normalized.length > 0 ? normalized : false;
 }
 
 export function discoverAvailableSkills(cwd: string): Array<{

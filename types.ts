@@ -232,7 +232,7 @@ export interface RunSyncOptions {
 	/** Override the agent's default model (format: "provider/id" or just "id") */
 	modelOverride?: string;
 	/** Skills to inject (overrides agent default if provided) */
-	skills?: string[];
+	skills?: string[] | false;
 }
 
 export interface ExtensionConfig {

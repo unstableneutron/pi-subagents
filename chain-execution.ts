@@ -76,7 +76,7 @@ export interface ChainExecutionParams {
 	includeProgress?: boolean;
 	clarify?: boolean;
 	onUpdate?: (r: AgentToolResult<Details>) => void;
-	chainSkills?: string[];
+	chainSkills?: string[] | false;
 	chainDir?: string;
 }
 
@@ -87,7 +87,7 @@ export interface ChainExecutionResult {
 	/** User requested async execution via TUI - caller should dispatch to executeAsyncChain */
 	requestedAsync?: {
 		chain: ChainStep[];
-		chainSkills: string[];
+		chainSkills: string[] | false | undefined;
 	};
 }
 
@@ -113,7 +113,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 		chainSkills: chainSkillsParam,
 		chainDir: chainDirBase,
 	} = params;
-	const chainSkills = chainSkillsParam ?? [];
+	const chainSkills = chainSkillsParam;
 
 	const allProgress: AgentProgress[] = [];
 	const allArtifactPaths: ArtifactPaths[] = [];
@@ -340,7 +340,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 						artifactsDir: artifactConfig.enabled ? artifactsDir : undefined,
 						artifactConfig,
 						modelOverride: effectiveModel,
-						skills: behavior.skills === false ? [] : behavior.skills,
+						skills: behavior.skills,
 						onUpdate: onUpdate
 							? (p) => {
 									// Use concat instead of spread for better performance
@@ -497,7 +497,7 @@ export async function executeChain(params: ChainExecutionParams): Promise<ChainE
 				artifactsDir: artifactConfig.enabled ? artifactsDir : undefined,
 				artifactConfig,
 				modelOverride: effectiveModel,
-				skills: behavior.skills === false ? [] : behavior.skills,
+				skills: behavior.skills,
 				onUpdate: onUpdate
 					? (p) => {
 							// Use concat instead of spread for better performance

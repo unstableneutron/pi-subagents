@@ -25,8 +25,8 @@ export interface AgentConfig {
 	systemPrompt: string;
 	source: AgentSource;
 	filePath: string;
-	skills?: string[];
-	extensions?: string[];
+	skills?: string[] | false;
+	extensions?: string[] | false;
 	// Chain behavior fields
 	output?: string;
 	defaultReads?: string[];
@@ -57,6 +57,22 @@ export interface ChainConfig {
 export interface AgentDiscoveryResult {
 	agents: AgentConfig[];
 	projectAgentsDir: string | null;
+}
+
+function parseFrontmatterList(value: string | undefined): string[] | undefined {
+	if (value === undefined) return undefined;
+	const trimmed = value.trim();
+	if (!trimmed || trimmed === "false") return undefined;
+	const items = trimmed.split(",").map((item) => item.trim()).filter(Boolean);
+	return items.length > 0 ? items : undefined;
+}
+
+function parseDisableableFrontmatterList(value: string | undefined): string[] | false | undefined {
+	if (value === undefined) return undefined;
+	const trimmed = value.trim();
+	if (trimmed === "" || trimmed === "false") return false;
+	const items = trimmed.split(",").map((item) => item.trim()).filter(Boolean);
+	return items.length > 0 ? items : false;
 }
 
 function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
@@ -92,10 +108,7 @@ function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
 			continue;
 		}
 
-		const rawTools = frontmatter.tools
-			?.split(",")
-			.map((t) => t.trim())
-			.filter(Boolean);
+		const rawTools = parseFrontmatterList(frontmatter.tools);
 
 		const mcpDirectTools: string[] = [];
 		const tools: string[] = [];
@@ -110,24 +123,12 @@ function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
 		}
 
 		// Parse defaultReads as comma-separated list (like tools)
-		const defaultReads = frontmatter.defaultReads
-			?.split(",")
-			.map((f) => f.trim())
-			.filter(Boolean);
+		const defaultReads = parseFrontmatterList(frontmatter.defaultReads);
 
-		const skillStr = frontmatter.skill || frontmatter.skills;
-		const skills = skillStr
-			?.split(",")
-			.map((s) => s.trim())
-			.filter(Boolean);
+		const skillValue = frontmatter.skill !== undefined ? frontmatter.skill : frontmatter.skills;
+		const skills = parseDisableableFrontmatterList(skillValue);
 
-		let extensions: string[] | undefined;
-		if (frontmatter.extensions !== undefined) {
-			extensions = frontmatter.extensions
-				.split(",")
-				.map((e) => e.trim())
-				.filter(Boolean);
-		}
+		const extensions = parseDisableableFrontmatterList(frontmatter.extensions);
 
 		const extraFields: Record<string, string> = {};
 		for (const [key, value] of Object.entries(frontmatter)) {
@@ -144,11 +145,11 @@ function loadAgentsFromDir(dir: string, source: AgentSource): AgentConfig[] {
 			systemPrompt: body,
 			source,
 			filePath,
-			skills: skills && skills.length > 0 ? skills : undefined,
+			skills,
 			extensions,
 			// Chain behavior fields
 			output: frontmatter.output,
-			defaultReads: defaultReads && defaultReads.length > 0 ? defaultReads : undefined,
+			defaultReads,
 			defaultProgress: frontmatter.defaultProgress === "true",
 			interactive: frontmatter.interactive === "true",
 			extraFields: Object.keys(extraFields).length > 0 ? extraFields : undefined,

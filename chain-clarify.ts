@@ -273,8 +273,14 @@ export class ChainClarifyComponent implements Component {
 	}
 
 	/** Update a behavior override for a step */
-	private updateBehavior(stepIndex: number, field: keyof BehaviorOverride, value: string | boolean | string[] | false): void {
+	private updateBehavior(stepIndex: number, field: keyof BehaviorOverride, value: string | boolean | string[] | false | undefined): void {
 		const existing = this.behaviorOverrides.get(stepIndex) ?? {};
+		if (value === undefined) {
+			const { [field]: _removed, ...rest } = existing;
+			if (Object.keys(rest).length === 0) this.behaviorOverrides.delete(stepIndex);
+			else this.behaviorOverrides.set(stepIndex, rest);
+			return;
+		}
 		this.behaviorOverrides.set(stepIndex, { ...existing, [field]: value });
 	}
 
@@ -359,9 +365,10 @@ export class ChainClarifyComponent implements Component {
 		this.tui.requestRender();
 	}
 
-	private arraysEqual(a: string[] | false, b: string[] | false): boolean {
+	private arraysEqual(a: string[] | false | undefined, b: string[] | false | undefined): boolean {
 		if (a === b) return true;
 		if (a === false || b === false) return false;
+		if (a === undefined || b === undefined) return false;
 		if (a.length !== b.length) return false;
 		for (let i = 0; i < a.length; i++) {
 			if (a[i] !== b[i]) return false;
@@ -410,7 +417,7 @@ export class ChainClarifyComponent implements Component {
 		if (override.skills !== undefined && !this.arraysEqual(override.skills, base.skills)) {
 			updates.push({
 				field: "skills",
-				value: override.skills === false || override.skills.length === 0 ? undefined : override.skills.join(", "),
+				value: override.skills === false || override.skills.length === 0 ? "false" : override.skills.join(", "),
 			});
 		}
 
@@ -511,7 +518,7 @@ export class ChainClarifyComponent implements Component {
 			this.filteredSkills = [...this.availableSkills];
 			const current = this.getEffectiveBehavior(this.selectedStep).skills;
 			this.skillSelectedNames.clear();
-			if (current !== false && current.length > 0) {
+			if (Array.isArray(current) && current.length > 0) {
 				current.forEach((skillName) => this.skillSelectedNames.add(skillName));
 			}
 			this.tui.requestRender();
@@ -768,8 +775,12 @@ export class ChainClarifyComponent implements Component {
 		}
 
 		if (matchesKey(data, "return")) {
+			const stepIndex = this.editingStep!;
 			const selected = [...this.skillSelectedNames];
-			this.updateBehavior(this.editingStep!, "skills", selected);
+			const current = this.getEffectiveBehavior(stepIndex).skills;
+			if (selected.length > 0) this.updateBehavior(stepIndex, "skills", selected);
+			else if (current === undefined) this.updateBehavior(stepIndex, "skills", undefined);
+			else this.updateBehavior(stepIndex, "skills", false);
 			this.exitEditMode();
 			return;
 		}

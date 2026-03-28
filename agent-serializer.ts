@@ -37,12 +37,20 @@ export function serializeAgent(config: AgentConfig): string {
 	if (config.model) lines.push(`model: ${config.model}`);
 	if (config.thinking && config.thinking !== "off") lines.push(`thinking: ${config.thinking}`);
 
-	const skillsValue = joinComma(config.skills);
-	if (skillsValue) lines.push(`skills: ${skillsValue}`);
+	if (config.skills === false) {
+		lines.push("skills: false");
+	} else {
+		const skillsValue = joinComma(config.skills);
+		if (skillsValue) lines.push(`skills: ${skillsValue}`);
+	}
 
 	if (config.extensions !== undefined) {
-		const extensionsValue = joinComma(config.extensions);
-		lines.push(`extensions: ${extensionsValue ?? ""}`);
+		if (config.extensions === false) {
+			lines.push("extensions: false");
+		} else {
+			const extensionsValue = joinComma(config.extensions);
+			lines.push(`extensions: ${extensionsValue ?? "false"}`);
+		}
 	}
 
 	if (config.output) lines.push(`output: ${config.output}`);

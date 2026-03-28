@@ -148,8 +148,8 @@ interface AgentConfig {
 	systemPrompt?: string;
 	model?: string;
 	tools?: string[];
-	extensions?: string[];
-	skills?: string[];
+	extensions?: string[] | false;
+	skills?: string[] | false;
 	thinking?: string;
 	scope?: string;
 	output?: string | false;

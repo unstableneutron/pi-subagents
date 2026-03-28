@@ -130,11 +130,18 @@ function modelWarning(ctx: ManagementContext, model: string | undefined): string
 	return found ? undefined : `Warning: model '${model}' is not in the current model registry.`;
 }
 
-function skillsWarning(cwd: string, skills: string[] | undefined): string | undefined {
-	if (!skills || skills.length === 0) return undefined;
+function skillsWarning(cwd: string, skills: string[] | false | undefined): string | undefined {
+	if (!Array.isArray(skills) || skills.length === 0) return undefined;
 	const available = new Set(discoverAvailableSkills(cwd).map((s) => s.name));
 	const missing = skills.filter((s) => !available.has(s));
 	return missing.length ? `Warning: skills not found: ${missing.join(", ")}.` : undefined;
+}
+
+function parseDisableableStringArray(value: unknown): string[] | false | undefined {
+	if (value === false) return false;
+	if (!Array.isArray(value)) return undefined;
+	const items = value.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
+	return items.length > 0 ? items : false;
 }
 
 function parseStepList(raw: unknown): { steps?: ChainStepConfig[]; error?: string } {
@@ -153,8 +160,8 @@ function parseStepList(raw: unknown): { steps?: ChainStepConfig[]; error?: strin
 			else return { error: `config.steps[${i}].output must be a string or false.` };
 		}
 		if (hasKey(s, "reads")) {
-			if (s.reads === false) step.reads = false;
-			else if (Array.isArray(s.reads)) step.reads = s.reads.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
+			const reads = parseDisableableStringArray(s.reads);
+			if (reads !== undefined) step.reads = reads;
 			else return { error: `config.steps[${i}].reads must be an array or false.` };
 		}
 		if (hasKey(s, "model")) {
@@ -162,8 +169,8 @@ function parseStepList(raw: unknown): { steps?: ChainStepConfig[]; error?: strin
 			else return { error: `config.steps[${i}].model must be a string.` };
 		}
 		if (hasKey(s, "skills")) {
-			if (s.skills === false) step.skills = false;
-			else if (Array.isArray(s.skills)) step.skills = s.skills.filter((v): v is string => typeof v === "string").map((v) => v.trim()).filter(Boolean);
+			const skills = parseDisableableStringArray(s.skills);
+			if (skills !== undefined) step.skills = skills;
 			else return { error: `config.steps[${i}].skills must be an array or false.` };
 		}
 		if (hasKey(s, "progress")) {
@@ -204,15 +211,16 @@ function applyAgentConfig(target: AgentConfig, cfg: Record<string, unknown>): st
 		else return "config.tools must be a comma-separated string or false when provided.";
 	}
 	if (hasKey(cfg, "skills")) {
-		if (cfg.skills === false || cfg.skills === "") target.skills = undefined;
-		else if (typeof cfg.skills === "string") { const skills = parseCsv(cfg.skills); target.skills = skills.length ? skills : undefined; }
-		else return "config.skills must be a comma-separated string or false when provided.";
+		if (cfg.skills === null) target.skills = undefined;
+		else if (cfg.skills === false || cfg.skills === "") target.skills = false;
+		else if (typeof cfg.skills === "string") { const skills = parseCsv(cfg.skills); target.skills = skills.length ? skills : false; }
+		else return "config.skills must be a comma-separated string, empty string, false, or null when provided.";
 	}
 	if (hasKey(cfg, "extensions")) {
-		if (cfg.extensions === false) target.extensions = undefined;
-		else if (cfg.extensions === "") target.extensions = [];
-		else if (typeof cfg.extensions === "string") target.extensions = parseCsv(cfg.extensions);
-		else return "config.extensions must be a comma-separated string, empty string, or false when provided.";
+		if (cfg.extensions === null) target.extensions = undefined;
+		else if (cfg.extensions === false || cfg.extensions === "") target.extensions = false;
+		else if (typeof cfg.extensions === "string") { const extensions = parseCsv(cfg.extensions); target.extensions = extensions.length ? extensions : false; }
+		else return "config.extensions must be a comma-separated string, empty string, false, or null when provided.";
 	}
 	if (hasKey(cfg, "thinking")) {
 		if (cfg.thinking === false || cfg.thinking === "") target.thinking = undefined;
@@ -287,8 +295,11 @@ export function formatAgentDetail(agent: AgentConfig): string {
 	const lines: string[] = [`Agent: ${agent.name} (${agent.source})`, `Path: ${agent.filePath}`, `Description: ${agent.description}`];
 	if (agent.model) lines.push(`Model: ${agent.model}`);
 	if (tools.length) lines.push(`Tools: ${tools.join(", ")}`);
-	if (agent.skills?.length) lines.push(`Skills: ${agent.skills.join(", ")}`);
-	if (agent.extensions !== undefined) lines.push(`Extensions: ${agent.extensions.length ? agent.extensions.join(", ") : "(none)"}`);
+	if (agent.skills === false) lines.push("Skills: (disabled)");
+	else if (agent.skills?.length) lines.push(`Skills: ${agent.skills.join(", ")}`);
+	if (agent.extensions !== undefined) {
+		lines.push(`Extensions: ${agent.extensions === false ? "(disabled)" : agent.extensions.length ? agent.extensions.join(", ") : "(disabled)"}`);
+	}
 	if (agent.thinking) lines.push(`Thinking: ${agent.thinking}`);
 	if (agent.output) lines.push(`Output: ${agent.output}`);
 	if (agent.defaultReads?.length) lines.push(`Reads: ${agent.defaultReads.join(", ")}`);

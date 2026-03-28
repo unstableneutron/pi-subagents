@@ -14,8 +14,8 @@ export interface BuildPiArgsInput {
 	model?: string;
 	thinking?: string;
 	tools?: string[];
-	extensions?: string[];
-	skills?: string[];
+	extensions?: string[] | false;
+	skills?: string[] | false;
 	systemPrompt?: string | null;
 	mcpDirectTools?: string[];
 	promptFileStem?: string;
@@ -74,8 +74,10 @@ export function buildPiArgs(input: BuildPiArgsInput): BuildPiArgsResult {
 
 	if (input.extensions !== undefined) {
 		args.push("--no-extensions");
-		for (const extPath of input.extensions) {
-			args.push("--extension", extPath);
+		if (input.extensions !== false) {
+			for (const extPath of input.extensions) {
+				args.push("--extension", extPath);
+			}
 		}
 	} else {
 		for (const extPath of toolExtensionPaths) {
@@ -83,7 +85,7 @@ export function buildPiArgs(input: BuildPiArgsInput): BuildPiArgsResult {
 		}
 	}
 
-	if ((input.skills?.length ?? 0) > 0) {
+	if (input.skills !== undefined) {
 		args.push("--no-skills");
 	}
 

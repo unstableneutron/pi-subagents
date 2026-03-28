@@ -111,6 +111,19 @@ describe("normalizeSkillInput", { skip: !available ? "pi packages not available"
 		assert.equal(normalizeSkillInput(false), false);
 	});
 
+	it("treats string false as disable", () => {
+		assert.equal(normalizeSkillInput("false"), false);
+	});
+
+	it("treats string true as use default", () => {
+		assert.equal(normalizeSkillInput("true"), undefined);
+	});
+
+	it("treats empty strings as disable", () => {
+		assert.equal(normalizeSkillInput(""), false);
+		assert.equal(normalizeSkillInput("   "), false);
+	});
+
 	it("splits comma-separated string", () => {
 		assert.deepEqual(normalizeSkillInput("web-search,pdf"), ["web-search", "pdf"]);
 	});
@@ -160,6 +173,12 @@ describe("resolveStepBehavior", { skip: !available ? "pi packages not available"
 		assert.equal(behavior.output, false);
 		assert.equal(behavior.reads, false);
 		assert.equal(behavior.progress, false);
+	});
+
+	it("chain skill false disables agent default skills", () => {
+		const config = { name: "test", skills: ["web-search"] };
+		const behavior = resolveStepBehavior(config, {}, false);
+		assert.equal(behavior.skills, false);
 	});
 });
 

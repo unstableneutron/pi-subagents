@@ -60,13 +60,15 @@ export async function runSync(
 	const effectiveModel = modelOverride ?? agent.model;
 	const modelArg = applyThinkingSuffix(effectiveModel, agent.thinking);
 
-	const skillNames = options.skills ?? agent.skills ?? [];
+	const skillNames = options.skills ?? agent.skills;
 	const skillCwd = cwd ?? runtimeCwd;
-	const { resolved: resolvedSkills, missing: missingSkills } = resolveSkillsWithFallback(
-		skillNames,
-		skillCwd,
-		runtimeCwd,
-	);
+	const resolvedSkills = [];
+	const missingSkills = [];
+	if (Array.isArray(skillNames) && skillNames.length > 0) {
+		const resolution = resolveSkillsWithFallback(skillNames, skillCwd, runtimeCwd);
+		resolvedSkills.push(...resolution.resolved);
+		missingSkills.push(...resolution.missing);
+	}
 
 	let systemPrompt = agent.systemPrompt?.trim() || "";
 	if (resolvedSkills.length > 0) {

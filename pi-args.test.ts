@@ -30,4 +30,17 @@ describe("buildPiArgs session wiring", () => {
 		assert.ok(args.includes("/tmp/subagent-sessions"));
 		assert.ok(!args.includes("--session"));
 	});
+
+	it("emits explicit disable flags for skills and extensions", () => {
+		const { args } = buildPiArgs({
+			baseArgs: ["-p"],
+			task: "hello",
+			sessionEnabled: false,
+			skills: false,
+			extensions: false,
+		});
+
+		assert.ok(args.includes("--no-skills"));
+		assert.ok(args.includes("--no-extensions"));
+	});
 });

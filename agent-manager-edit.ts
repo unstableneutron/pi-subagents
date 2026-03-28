@@ -29,9 +29,9 @@ function parseCommaList(value: string): string[] | undefined { const items = val
 
 export function createEditState(draft: AgentConfig, isNew: boolean, models: ModelInfo[], skills: SkillInfo[]): EditState {
 	return {
-		draft: { ...draft, tools: draft.tools ? [...draft.tools] : undefined, mcpDirectTools: draft.mcpDirectTools ? [...draft.mcpDirectTools] : undefined, skills: draft.skills ? [...draft.skills] : undefined, extensions: draft.extensions ? [...draft.extensions] : draft.extensions, defaultReads: draft.defaultReads ? [...draft.defaultReads] : undefined, extraFields: draft.extraFields ? { ...draft.extraFields } : undefined },
+		draft: { ...draft, tools: draft.tools ? [...draft.tools] : undefined, mcpDirectTools: draft.mcpDirectTools ? [...draft.mcpDirectTools] : undefined, skills: Array.isArray(draft.skills) ? [...draft.skills] : draft.skills, extensions: Array.isArray(draft.extensions) ? [...draft.extensions] : draft.extensions, defaultReads: draft.defaultReads ? [...draft.defaultReads] : undefined, extraFields: draft.extraFields ? { ...draft.extraFields } : undefined },
 		isNew, fieldIndex: 0, fieldMode: null, fieldEditor: createEditorState(), promptEditor: createEditorState(draft.systemPrompt ?? ""),
-		modelSearchQuery: "", modelCursor: 0, filteredModels: [...models], thinkingCursor: 0, skillSearchQuery: "", skillCursor: 0, filteredSkills: [...skills], skillSelected: new Set(draft.skills ?? []),
+		modelSearchQuery: "", modelCursor: 0, filteredModels: [...models], thinkingCursor: 0, skillSearchQuery: "", skillCursor: 0, filteredSkills: [...skills], skillSelected: new Set(Array.isArray(draft.skills) ? draft.skills : []),
 	};
 }
 
@@ -43,8 +43,8 @@ function renderFieldValue(field: EditField, state: EditState): string {
 		case "model": return draft.model ?? "default";
 		case "thinking": return draft.thinking ?? "off";
 		case "tools": return formatTools(draft);
-		case "extensions": return draft.extensions !== undefined ? (draft.extensions.length > 0 ? draft.extensions.join(", ") : "") : "(all)";
-		case "skills": return draft.skills && draft.skills.length > 0 ? draft.skills.join(", ") : "";
+		case "extensions": return draft.extensions !== undefined ? (draft.extensions === false ? "(disabled)" : draft.extensions.length > 0 ? draft.extensions.join(", ") : "(disabled)") : "(all)";
+		case "skills": return draft.skills === false ? "(disabled)" : draft.skills && draft.skills.length > 0 ? draft.skills.join(", ") : "(default)";
 		case "output": return draft.output ?? "";
 		case "reads": return draft.defaultReads && draft.defaultReads.length > 0 ? draft.defaultReads.join(", ") : "";
 		case "progress": return draft.defaultProgress ? "on" : "off";
@@ -60,8 +60,8 @@ function applyFieldValue(field: EditField, state: EditState, value: string): voi
 		case "description": draft.description = value.trim(); break;
 		case "model": draft.model = value.trim() || undefined; break;
 		case "tools": { const parsed = parseTools(value); draft.tools = parsed.tools; draft.mcpDirectTools = parsed.mcp; break; }
-		case "extensions": { const trimmed = value.trim(); draft.extensions = trimmed === "(all)" ? undefined : parseCommaList(trimmed) ?? []; break; }
-		case "skills": draft.skills = parseCommaList(value); break;
+		case "extensions": { const trimmed = value.trim(); draft.extensions = trimmed === "(all)" ? undefined : trimmed === "(disabled)" ? false : parseCommaList(trimmed) ?? false; break; }
+		case "skills": draft.skills = parseCommaList(value) ?? false; break;
 		case "output": { const trimmed = value.trim(); draft.output = trimmed.length > 0 ? trimmed : undefined; break; }
 		case "reads": draft.defaultReads = parseCommaList(value); break;
 		case "progress": case "interactive": case "prompt": break;
@@ -77,7 +77,7 @@ function openThinkingPicker(state: EditState): void {
 	const idx = THINKING_LEVELS.indexOf((state.draft.thinking ?? "off") as ThinkingLevel); state.thinkingCursor = idx >= 0 ? idx : 0;
 }
 function openSkillPicker(state: EditState, skills: SkillInfo[]): void {
-	state.fieldIndex = FIELD_ORDER.indexOf("skills"); state.fieldMode = "skills"; state.skillSearchQuery = ""; state.filteredSkills = [...skills]; state.skillSelected = new Set(state.draft.skills ?? []); state.skillCursor = 0;
+	state.fieldIndex = FIELD_ORDER.indexOf("skills"); state.fieldMode = "skills"; state.skillSearchQuery = ""; state.filteredSkills = [...skills]; state.skillSelected = new Set(Array.isArray(state.draft.skills) ? state.draft.skills : []); state.skillCursor = 0;
 }
 
 function renderModelPicker(state: EditState, width: number, theme: Theme): string[] {
@@ -157,7 +157,7 @@ function renderSkillPicker(state: EditState, width: number, theme: Theme): strin
 		const remaining = list.length - endIdx; if (remaining > 0) lines.push(row(` ${theme.fg("dim", `  ↓ ${remaining} more`)}`, width, theme));
 	}
 	while (lines.length < 19) lines.push(row("", width, theme));
-	lines.push(renderFooter(" [enter] confirm  [space] toggle  [esc] cancel ", width, theme));
+	lines.push(renderFooter(" [enter] confirm  [space] toggle  [backspace] default  [esc] cancel ", width, theme));
 	return lines;
 }
 
@@ -220,8 +220,9 @@ export function handleEditInput(screen: EditScreen, state: EditState, data: stri
 		}
 		if (state.fieldMode === "skills") {
 			if (matchesKey(data, "escape") || matchesKey(data, "ctrl+c")) { state.fieldMode = null; return { nextScreen: "edit" }; }
-			if (matchesKey(data, "return")) { const selected = [...state.skillSelected]; state.draft.skills = selected.length > 0 ? selected : undefined; state.fieldMode = null; return { nextScreen: "edit" }; }
+			if (matchesKey(data, "return")) { const selected = [...state.skillSelected]; state.draft.skills = selected.length > 0 ? selected : false; state.fieldMode = null; return { nextScreen: "edit" }; }
 			if (data === " ") { const skill = state.filteredSkills[state.skillCursor]; if (skill) { if (state.skillSelected.has(skill.name)) state.skillSelected.delete(skill.name); else state.skillSelected.add(skill.name); } return; }
+			if (matchesKey(data, "backspace") && state.skillSearchQuery.length === 0) { state.draft.skills = undefined; state.fieldMode = null; return { nextScreen: "edit" }; }
 			if (matchesKey(data, "up")) { if (state.filteredSkills.length > 0) state.skillCursor = state.skillCursor === 0 ? state.filteredSkills.length - 1 : state.skillCursor - 1; return; }
 			if (matchesKey(data, "down")) { if (state.filteredSkills.length > 0) state.skillCursor = state.skillCursor === state.filteredSkills.length - 1 ? 0 : state.skillCursor + 1; return; }
 			if (matchesKey(data, "backspace")) { if (state.skillSearchQuery.length > 0) state.skillSearchQuery = state.skillSearchQuery.slice(0, -1); }

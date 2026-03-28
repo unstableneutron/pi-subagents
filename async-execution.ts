@@ -63,7 +63,7 @@ export interface AsyncChainParams {
 	artifactConfig: ArtifactConfig;
 	shareEnabled: boolean;
 	sessionRoot?: string;
-	chainSkills?: string[];
+	chainSkills?: string[] | false;
 	sessionFilesByFlatIndex?: (string | undefined)[];
 }
 
@@ -79,7 +79,7 @@ export interface AsyncSingleParams {
 	shareEnabled: boolean;
 	sessionRoot?: string;
 	sessionFile?: string;
-	skills?: string[];
+	skills?: string[] | false;
 	output?: string | false;
 }
 
@@ -144,7 +144,7 @@ export function executeAsyncChain(
 		sessionRoot,
 		sessionFilesByFlatIndex,
 	} = params;
-	const chainSkills = params.chainSkills ?? [];
+	const chainSkills = params.chainSkills;
 
 	// Validate all agents exist before building steps
 	for (const s of chain) {
@@ -182,9 +182,15 @@ export function executeAsyncChain(
 		const stepSkillInput = normalizeSkillInput(s.skill);
 		const stepOverrides: StepOverrides = { skills: stepSkillInput };
 		const behavior = resolveStepBehavior(a, stepOverrides, chainSkills);
-		const skillNames = behavior.skills === false ? [] : behavior.skills;
+		const skillNames = behavior.skills;
 		const skillCwd = stepCwd ?? runnerCwd;
-		const { resolved: resolvedSkills, missing } = resolveSkillsWithFallback(skillNames, skillCwd, ctx.cwd);
+		const resolvedSkills = [];
+		const missing: string[] = [];
+		if (Array.isArray(skillNames) && skillNames.length > 0) {
+			const resolution = resolveSkillsWithFallback(skillNames, skillCwd, ctx.cwd);
+			resolvedSkills.push(...resolution.resolved);
+			missing.push(...resolution.missing);
+		}
 		const warning = formatMissingSkillsWarning(missing);
 		if (warning) stepWarnings.push(`${s.agent}: ${warning}`);
 
@@ -208,7 +214,7 @@ export function executeAsyncChain(
 			extensions: a.extensions,
 			mcpDirectTools: a.mcpDirectTools,
 			systemPrompt,
-			skills: resolvedSkills.map((r) => r.name),
+			skills: skillNames === false ? false : Array.isArray(skillNames) ? resolvedSkills.map((r) => r.name) : undefined,
 			outputPath,
 			sessionFile,
 		};
@@ -316,9 +322,15 @@ export function executeAsyncSingle(
 		sessionRoot,
 		sessionFile,
 	} = params;
-	const skillNames = params.skills ?? agentConfig.skills ?? [];
+	const skillNames = params.skills ?? agentConfig.skills;
 	const skillCwd = resolveExecutionCwd(ctx.cwd, cwd);
-	const { resolved: resolvedSkills, missing } = resolveSkillsWithFallback(skillNames, skillCwd, ctx.cwd);
+	const resolvedSkills = [];
+	const missing: string[] = [];
+	if (Array.isArray(skillNames) && skillNames.length > 0) {
+		const resolution = resolveSkillsWithFallback(skillNames, skillCwd, ctx.cwd);
+		resolvedSkills.push(...resolution.resolved);
+		missing.push(...resolution.missing);
+	}
 	let systemPrompt = agentConfig.systemPrompt?.trim() || null;
 	if (resolvedSkills.length > 0) {
 		const injection = buildSkillInjection(resolvedSkills);
@@ -354,7 +366,7 @@ export function executeAsyncSingle(
 					extensions: agentConfig.extensions,
 					mcpDirectTools: agentConfig.mcpDirectTools,
 					systemPrompt,
-					skills: resolvedSkills.map((r) => r.name),
+					skills: skillNames === false ? false : Array.isArray(skillNames) ? resolvedSkills.map((r) => r.name) : undefined,
 					outputPath,
 					sessionFile,
 				},

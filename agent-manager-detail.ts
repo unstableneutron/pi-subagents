@@ -54,7 +54,11 @@ function buildDetailLines(
 
 	const tools = agent.tools && agent.tools.length > 0 ? agent.tools.join(", ") : "(none)";
 	const mcp = agent.mcpDirectTools && agent.mcpDirectTools.length > 0 ? agent.mcpDirectTools.join(", ") : "(none)";
-	const skillsList = agent.skills && agent.skills.length > 0 ? agent.skills.join(", ") : "(none)";
+	const skillsList = agent.skills === false
+		? "(disabled)"
+		: agent.skills && agent.skills.length > 0
+			? agent.skills.join(", ")
+			: "(none)";
 	const output = agent.output ?? "(none)";
 	const reads = agent.defaultReads && agent.defaultReads.length > 0 ? agent.defaultReads.join(", ") : "(none)";
 	const progress = agent.defaultProgress ? "on" : "off";
@@ -65,7 +69,7 @@ function buildDetailLines(
 	lines.push(renderFieldLine("MCP:", mcp, contentWidth, theme));
 	lines.push(renderFieldLine("Skills:", skillsList, contentWidth, theme));
 	const extensionsList = agent.extensions !== undefined
-		? (agent.extensions.length > 0 ? agent.extensions.join(", ") : "(none)")
+		? (agent.extensions === false ? "(disabled)" : agent.extensions.length > 0 ? agent.extensions.join(", ") : "(disabled)")
 		: "(all)";
 	lines.push(renderFieldLine("Extensions:", extensionsList, contentWidth, theme));
 	lines.push(renderFieldLine("Output:", output, contentWidth, theme));
@@ -84,7 +88,7 @@ function buildDetailLines(
 
 	let prompt = agent.systemPrompt ?? "";
 	if (resolved) {
-		const { resolved: resolvedSkills } = resolveSkills(agent.skills ?? [], cwd);
+		const { resolved: resolvedSkills } = resolveSkills(Array.isArray(agent.skills) ? agent.skills : [], cwd);
 		const injection = buildSkillInjection(resolvedSkills);
 		if (injection) prompt = `${prompt}\n\n${injection}`;
 	}
