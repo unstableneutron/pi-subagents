@@ -15,7 +15,7 @@ import { injectSingleOutputInstruction, resolveSingleOutputPath } from "./single
 import { isParallelStep, resolveStepBehavior, type ChainStep, type SequentialStep, type StepOverrides } from "./settings.js";
 import type { RunnerStep } from "./parallel-utils.js";
 import { resolvePiPackageRoot } from "./pi-spawn.js";
-import { buildSkillInjection, normalizeSkillInput, resolveSkills } from "./skills.js";
+import { buildSkillInjection, normalizeSkillInput, resolveSkillsWithFallback } from "./skills.js";
 import {
 	type ArtifactConfig,
 	type Details,
@@ -101,6 +101,10 @@ export function resolveExecutionCwd(baseCwd: string, requestedCwd?: string): str
 	return path.isAbsolute(requestedCwd) ? requestedCwd : path.resolve(baseCwd, requestedCwd);
 }
 
+function formatMissingSkillsWarning(missingSkills: string[]): string | undefined {
+	return missingSkills.length > 0 ? `Warning: skills not found: ${missingSkills.join(", ")}.` : undefined;
+}
+
 /**
  * Spawn the async runner process
  */
@@ -169,6 +173,7 @@ export function executeAsyncChain(
 			details: { mode: "chain" as const, results: [] },
 		};
 	}
+	const stepWarnings: string[] = [];
 
 	/** Build a resolved runner step from a SequentialStep */
 	const buildSeqStep = (s: SequentialStep, sessionFile?: string) => {
@@ -178,7 +183,10 @@ export function executeAsyncChain(
 		const stepOverrides: StepOverrides = { skills: stepSkillInput };
 		const behavior = resolveStepBehavior(a, stepOverrides, chainSkills);
 		const skillNames = behavior.skills === false ? [] : behavior.skills;
-		const { resolved: resolvedSkills } = resolveSkills(skillNames, ctx.cwd);
+		const skillCwd = stepCwd ?? runnerCwd;
+		const { resolved: resolvedSkills, missing } = resolveSkillsWithFallback(skillNames, skillCwd, ctx.cwd);
+		const warning = formatMissingSkillsWarning(missing);
+		if (warning) stepWarnings.push(`${s.agent}: ${warning}`);
 
 		let systemPrompt = a.systemPrompt?.trim() || null;
 		if (resolvedSkills.length > 0) {
@@ -280,9 +288,10 @@ export function executeAsyncChain(
 			isParallelStep(s) ? `[${s.parallel.map((t) => t.agent).join("+")}]` : (s as SequentialStep).agent,
 		)
 		.join(" -> ");
+	const warningText = stepWarnings.length > 0 ? `\n${stepWarnings.join("\n")}` : "";
 
 	return {
-		content: [{ type: "text", text: `Async chain: ${chainDesc} [${id}]` }],
+		content: [{ type: "text", text: `Async chain: ${chainDesc} [${id}]${warningText}` }],
 		details: { mode: "chain", results: [], asyncId: id, asyncDir },
 	};
 }
@@ -308,12 +317,14 @@ export function executeAsyncSingle(
 		sessionFile,
 	} = params;
 	const skillNames = params.skills ?? agentConfig.skills ?? [];
-	const { resolved: resolvedSkills } = resolveSkills(skillNames, ctx.cwd);
+	const skillCwd = resolveExecutionCwd(ctx.cwd, cwd);
+	const { resolved: resolvedSkills, missing } = resolveSkillsWithFallback(skillNames, skillCwd, ctx.cwd);
 	let systemPrompt = agentConfig.systemPrompt?.trim() || null;
 	if (resolvedSkills.length > 0) {
 		const injection = buildSkillInjection(resolvedSkills);
 		systemPrompt = systemPrompt ? `${systemPrompt}\n\n${injection}` : injection;
 	}
+	const warningText = formatMissingSkillsWarning(missing);
 
 	const asyncDir = path.join(ASYNC_DIR, id);
 	try {
@@ -376,7 +387,7 @@ export function executeAsyncSingle(
 	}
 
 	return {
-		content: [{ type: "text", text: `Async: ${agent} [${id}]` }],
+		content: [{ type: "text", text: `Async: ${agent} [${id}]${warningText ? `\n${warningText}` : ""}` }],
 		details: { mode: "single", results: [], asyncId: id, asyncDir },
 	};
 }
